@@ -6,6 +6,9 @@ from transcriber import transcribe_file, download_and_transcribe_url
 # Suppress HuggingFace symlink warning on Windows
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
+# Allow longer downloads from HF hub (seconds)
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "300")
+
 # If you set a Hugging Face token in Streamlit Secrets as `HF_TOKEN`, log in
 # to increase download rate limits and avoid anonymous rate limiting.
 try:

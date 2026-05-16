@@ -1,9 +1,20 @@
+import os
 import time
 from typing import Dict
 
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from rouge_score import rouge_scorer
+
+# If a HF token is provided in the environment, log in to increase download
+# rate limits and reduce anonymous throttling.
+try:
+    from huggingface_hub import login as hf_login
+    hf_token = os.getenv("HF_TOKEN")
+    if hf_token:
+        hf_login(token=hf_token)
+except Exception:
+    pass
 
 
 class ModelComparer:
@@ -15,10 +26,11 @@ class ModelComparer:
     - T5: `t5-small`
     """
 
+    # Use a single lightweight default model for reliability on low-memory
+    # hosts (Streamlit Cloud free tier). Change to additional models if you
+    # deploy on a larger machine.
     DEFAULT_MODELS = {
-        "PEGASUS (google/pegasus-large)": "google/pegasus-large",
-        "BART (facebook/bart-large-cnn)": "facebook/bart-large-cnn",
-        "T5 (t5-small)": "t5-small",
+        "DistilBART (sshleifer/distilbart-cnn-12-6)": "sshleifer/distilbart-cnn-12-6",
     }
 
     def __init__(self, max_length: int = 120):
