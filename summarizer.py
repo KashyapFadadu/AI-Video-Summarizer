@@ -26,11 +26,10 @@ class ModelComparer:
     - T5: `t5-small`
     """
 
-    # Use a small set of lightweight models that work well on limited hosts.
     DEFAULT_MODELS = {
-        "DistilBART (sshleifer/distilbart-cnn-12-6)": "sshleifer/distilbart-cnn-12-6",
-        "T5 Small (t5-small)": "t5-small",
-        "FLAN-T5 Small (google/flan-t5-small)": "google/flan-t5-small",
+        "DistilBART": "sshleifer/distilbart-cnn-12-6",
+        "T5 Small": "t5-small",
+        "FLAN-T5 Small": "google/flan-t5-small",
     }
 
     def __init__(self, max_length: int = 120):
@@ -50,19 +49,22 @@ class ModelComparer:
         return self.cache[model_name]
 
     def summarize(self, text: str, model_name: str) -> str:
-        """Generate a summary using the specified model."""
+
         objs = self._load(model_name)
+
         tokenizer = objs["tokenizer"]
         model = objs["model"]
 
-        model_max = getattr(tokenizer, "model_max_length", None)
-        if model_max is None or model_max <= 0:
-            model_max = 1024
-        model_max = min(model_max, 4096)
-
-        # Add summarization prompt for T5/FLAN models which are instruction-tuned
+        # T5 models need summarize prompt
         if "t5" in model_name.lower():
             text = "summarize: " + text
+
+        model_max = getattr(tokenizer, "model_max_length", 1024)
+
+        if model_max <= 0:
+            model_max = 1024
+
+        model_max = min(model_max, 1024)
 
         batch = tokenizer(
             text,
@@ -70,8 +72,11 @@ class ModelComparer:
             truncation=True,
             max_length=model_max,
         )
+
         input_ids = batch["input_ids"].to(self.device)
+
         attention_mask = batch.get("attention_mask")
+
         if attention_mask is not None:
             attention_mask = attention_mask.to(self.device)
 
@@ -79,55 +84,97 @@ class ModelComparer:
             input_ids,
             attention_mask=attention_mask,
             max_length=self.max_length,
-            num_beams=4,
+            min_length=30,
+            num_beams=2,
             early_stopping=True,
         )
-        summary = tokenizer.decode(
-            generated[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
-        # Validate empty outputs from some models
-        if not summary or not summary.strip():
+        summary = tokenizer.decode(
+            generated[0],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True,
+        )
+
+        if not summary.strip():
             summary = "No summary generated."
 
         return summary
 
     def compare_models(self, text: str) -> Dict[str, Dict]:
-        """Generate summaries from all models and return metrics."""
+
         results = {}
+
         for display_name, hf_name in self.DEFAULT_MODELS.items():
+
             start = time.time()
+
             try:
                 summary = self.summarize(text, hf_name)
+
             except Exception as e:
+
                 print(f"MODEL FAILED: {display_name}")
                 print(str(e))
 
                 summary = f"ERROR: {str(e)}"
+
             elapsed = time.time() - start
+
             length = len(summary)
+
             compression = len(text) / (length + 1)
+
             results[display_name] = {
                 "summary": summary,
                 "time": elapsed,
                 "length": length,
                 "compression": compression,
             }
+
         return results
 
     def evaluate_models(self, text: str, results: Dict[str, Dict]) -> Dict[str, Dict]:
-        """Compute ROUGE scores for each summary against reference text."""
+
         scorer = rouge_scorer.RougeScorer(
-            ["rouge1", "rouge2", "rougeL"], use_stemmer=True)
+            ["rouge1", "rouge2", "rougeL"],
+            use_stemmer=True
+        )
+
         eval_results = {}
 
         for model_name, metrics in results.items():
+
             summary = metrics["summary"]
-            scores = scorer.score(text, summary)
-            eval_results[model_name] = {
-                "rouge1": scores["rouge1"].fmeasure,
-                "rouge2": scores["rouge2"].fmeasure,
-                "rougeL": scores["rougeL"].fmeasure,
-            }
+
+            if summary.startswith("ERROR"):
+                eval_results[model_name] = {
+                    "rouge1": 0,
+                    "rouge2": 0,
+                    "rougeL": 0,
+                }
+
+                continue
+
+            try:
+
+                scores = scorer.score(text, summary)
+
+                eval_results[model_name] = {
+                    "rouge1": scores["rouge1"].fmeasure,
+                    "rouge2": scores["rouge2"].fmeasure,
+                    "rougeL": scores["rougeL"].fmeasure,
+                }
+
+            except Exception as e:
+
+                print(f"Evaluation failed: {e}")
+
+                eval_results[model_name] = {
+                    "rouge1": 0,
+                    "rouge2": 0,
+                    "rougeL": 0,
+                }
+
         return eval_results
 
     def recommend_best_model(self, eval_results: Dict[str, Dict]):
