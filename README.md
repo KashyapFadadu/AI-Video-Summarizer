@@ -32,7 +32,7 @@ An intelligent video summarization tool powered by cutting-edge AI models. Uploa
 
 ## 🚀 Live Demo
 
-👉 **[Try the live app here!](https://your-app-url.streamlit.app)**
+👉 **[Try the live app here!](https://ai-video-summarizer-new.streamlit.app/)**
 
 ## 📋 Requirements
 

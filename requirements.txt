@@ -11,3 +11,5 @@ rouge-score
 langdetect
 pandas
 yt-dlp
+torchvision
+imageio-ffmpeg

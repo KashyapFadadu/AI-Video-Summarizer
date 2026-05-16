@@ -3,6 +3,19 @@ import os
 import shutil
 import urllib.request
 
+# If `imageio-ffmpeg` is available (bundles an ffmpeg binary), make sure Whisper
+# can find the ffmpeg executable on environments like Streamlit Cloud where
+# system `ffmpeg` may not be installed.
+try:
+    import imageio_ffmpeg as _imageio_ffmpeg
+    ffmpeg_exe = _imageio_ffmpeg.get_ffmpeg_exe()
+    if ffmpeg_exe:
+        os.environ.setdefault("FFMPEG_BINARY", ffmpeg_exe)
+        # Add the ffmpeg directory to PATH so subprocess calls can find it
+        os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + os.path.dirname(ffmpeg_exe)
+except Exception:
+    pass
+
 
 def _save_upload_to_temp(uploaded_file):
     suffix = os.path.splitext(uploaded_file.name)[1]
