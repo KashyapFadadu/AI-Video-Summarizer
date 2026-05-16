@@ -1,0 +1,13 @@
+streamlit
+torch
+transformers
+sentencepiece
+openai-whisper
+ffmpeg-python
+nltk
+spacy
+opencv-python-headless
+rouge-score
+langdetect
+pandas
+yt-dlp
