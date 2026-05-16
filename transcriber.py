@@ -15,6 +15,26 @@ try:
         os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + os.path.dirname(ffmpeg_exe)
 except Exception:
     pass
+else:
+    ffmpeg_exe = None
+
+# Fallback: if we found an ffmpeg executable via imageio-ffmpeg, create a
+# stable `/tmp/ffmpeg` entry (symlink or copy) and prepend `/tmp` to PATH so
+# subprocess lookups for `ffmpeg` succeed. This helps on environments where
+# PATH changes may not be picked up by lower-level libs.
+try:
+    if ffmpeg_exe:
+        tmp_ffmpeg = "/tmp/ffmpeg"
+        if not os.path.exists(tmp_ffmpeg):
+            try:
+                os.symlink(ffmpeg_exe, tmp_ffmpeg)
+            except Exception:
+                shutil.copy(ffmpeg_exe, tmp_ffmpeg)
+                os.chmod(tmp_ffmpeg, 0o755)
+        # Prepend /tmp so it's found first
+        os.environ["PATH"] = "/tmp" + os.pathsep + os.environ.get("PATH", "")
+except Exception:
+    pass
 
 
 def _save_upload_to_temp(uploaded_file):
