@@ -10,9 +10,9 @@ An intelligent video summarization tool powered by cutting-edge AI models. Uploa
   - Provide video URLs (YouTube, direct links)
 
 - **🤖 AI-Powered Summarization**
-  - **PEGASUS**: Google's powerful pre-trained summarizer
-  - **BART**: Facebook's sequence-to-sequence model
-  - **T5**: Unified text-to-text transformer
+  - **DistilBART**: fast, lightweight summarization
+  - **T5 Small**: instruction-tuned summarization
+  - **FLAN-T5 Small**: small prompt-based summarizer
   - Compare summaries from all three models simultaneously
 
 - **🌍 Multi-Language Support**
@@ -87,14 +87,14 @@ An intelligent video summarization tool powered by cutting-edge AI models. Uploa
 ```
 AI-Video-Summarizer/
 ├── app.py                 # Main Streamlit application
-├── summarizer.py          # Summarization models (PEGASUS, BART, T5)
+├── summarizer.py          # Summarization models (DistilBART, T5 Small, FLAN-T5 Small)
 ├── transcriber.py         # Video transcription with Whisper
 ├── pages/
-│   └── 1_Admin.py        # Admin dashboard
+│   └── 1_Admin.py         # Admin dashboard
 ├── requirements.txt       # Python dependencies
 ├── .streamlit/
 │   └── config.toml       # Streamlit configuration
-└── README.md             # This file
+└── README.md              # This file
 ```
 
 ## 🔧 Usage Guide
@@ -123,11 +123,11 @@ AI-Video-Summarizer/
 
 ## 🧠 AI Models Used
 
-| Model       | Provider      | Strengths                               |
-| ----------- | ------------- | --------------------------------------- |
-| **PEGASUS** | Google        | Abstractive summarization, high quality |
-| **BART**    | Facebook/Meta | Balanced speed and quality              |
-| **T5**      | Google        | Flexible, good for custom tasks         |
+| Model             | Provider     | Strengths                                         |
+| ----------------- | ------------ | ------------------------------------------------- |
+| **DistilBART**    | Hugging Face | Lightweight, fast, good for low-memory deployment |
+| **T5 Small**      | Google       | Instruction-tuned summarization with prompt input |
+| **FLAN-T5 Small** | Google       | Prompt-based summarization for shorter text       |
 
 ## 📊 How It Works
 
@@ -159,13 +159,23 @@ Modify `summarizer.py`:
 
 ```python
 DEFAULT_MODELS = {
-    "PEGASUS": "google/pegasus-large",
-    "BART": "facebook/bart-large-cnn",
-    "T5": "t5-small",
+    "DistilBART": "sshleifer/distilbart-cnn-12-6",
+    "T5 Small": "t5-small",
+    "FLAN-T5 Small": "google/flan-t5-small",
 }
 ```
 
 ## 🐛 Troubleshooting
+
+### Hugging Face Token
+
+If you hit rate limits or slow downloads, add `HF_TOKEN` to your environment or Streamlit secrets:
+
+```bash
+export HF_TOKEN="your_hf_token"
+```
+
+Then redeploy or restart the app.
 
 ### FFmpeg Not Found
 
