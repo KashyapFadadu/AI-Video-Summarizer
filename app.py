@@ -6,6 +6,17 @@ from transcriber import transcribe_file, download_and_transcribe_url
 # Suppress HuggingFace symlink warning on Windows
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
+# If you set a Hugging Face token in Streamlit Secrets as `HF_TOKEN`, log in
+# to increase download rate limits and avoid anonymous rate limiting.
+try:
+    from huggingface_hub import login as hf_login
+    hf_token = os.getenv("HF_TOKEN")
+    if hf_token:
+        hf_login(token=hf_token)
+except Exception:
+    # huggingface_hub may not be installed in local dev; it's optional
+    pass
+
 st.set_page_config(
     page_title="AI Video Summarizer — User Dashboard", layout="wide")
 

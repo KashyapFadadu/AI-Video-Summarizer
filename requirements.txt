@@ -14,3 +14,4 @@ langdetect
 pandas
 yt-dlp
 torchvision
+huggingface_hub

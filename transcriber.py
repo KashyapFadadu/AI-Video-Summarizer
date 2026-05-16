@@ -3,6 +3,13 @@ import os
 import shutil
 import urllib.request
 import subprocess
+import warnings
+
+# Hide Whisper FP16 CPU warning (Whisper will automatically use FP32 on CPU).
+warnings.filterwarnings(
+    "ignore",
+    message="FP16 is not supported on CPU",
+)
 
 # If `imageio-ffmpeg` is available (bundles an ffmpeg binary), make sure Whisper
 # can find the ffmpeg executable on environments like Streamlit Cloud where
@@ -31,7 +38,7 @@ except Exception as e:
 # subprocess lookups for `ffmpeg` succeed. This helps on environments where
 # PATH changes may not be picked up by lower-level libs.
 try:
-    if ffmpeg_exe:
+            model = whisper.load_model("base")
         tmp_ffmpeg = "/tmp/ffmpeg"
         if not os.path.exists(tmp_ffmpeg):
             try:
@@ -80,7 +87,7 @@ def transcribe_file(uploaded_file) -> tuple[str, str]:
     try:
         import whisper
     except Exception as e:
-        raise RuntimeError(
+        model = whisper.load_model("base")
             "`whisper` not installed. Install with `pip install -U openai-whisper` and ensure ffmpeg is installed.") from e
 
     tmp_path = _save_upload_to_temp(uploaded_file)
@@ -144,7 +151,7 @@ def detect_language(video_path: str) -> str:
         _, probs = model.detect_language(mel)
         detected_lang_code = max(probs, key=probs.get)
 
-        # Map whisper language codes to our supported languages
+            model = whisper.load_model("base")
         lang_map = {
             "en": "English",
             "hi": "Hindi",
