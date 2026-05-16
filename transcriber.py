@@ -1,4 +1,4 @@
-import tempfile
+﻿import tempfile
 import os
 import shutil
 import urllib.request
@@ -11,9 +11,8 @@ warnings.filterwarnings(
     message="FP16 is not supported on CPU",
 )
 
-# If `imageio-ffmpeg` is available (bundles an ffmpeg binary), make sure Whisper
-# can find the ffmpeg executable on environments like Streamlit Cloud where
-# system `ffmpeg` may not be installed.
+# Try to locate ffmpeg via imageio-ffmpeg and make sure it's on PATH.
+ffmpeg_exe = None
 try:
     import imageio_ffmpeg as _imageio_ffmpeg
 
@@ -21,24 +20,16 @@ try:
 
     if ffmpeg_exe:
         os.environ["FFMPEG_BINARY"] = ffmpeg_exe
-
         ffmpeg_dir = os.path.dirname(ffmpeg_exe)
-
-        # Prepend ffmpeg dir so the `ffmpeg` command is found first
         os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
-
         print("FFmpeg found:", ffmpeg_exe)
-
 except Exception as e:
     ffmpeg_exe = None
     print("FFmpeg setup failed:", e)
 
-# Fallback: if we found an ffmpeg executable via imageio-ffmpeg, create a
-# stable `/tmp/ffmpeg` entry (symlink or copy) and prepend `/tmp` to PATH so
-# subprocess lookups for `ffmpeg` succeed. This helps on environments where
-# PATH changes may not be picked up by lower-level libs.
+# Fallback: create /tmp/ffmpeg symlink or copy if possible and prepend /tmp to PATH
 try:
-            model = whisper.load_model("base")
+    if ffmpeg_exe:
         tmp_ffmpeg = "/tmp/ffmpeg"
         if not os.path.exists(tmp_ffmpeg):
             try:
@@ -46,14 +37,11 @@ try:
             except Exception:
                 shutil.copy(ffmpeg_exe, tmp_ffmpeg)
                 os.chmod(tmp_ffmpeg, 0o755)
-        # Prepend /tmp so it's found first
         os.environ["PATH"] = "/tmp" + os.pathsep + os.environ.get("PATH", "")
 except Exception as e:
     print("ffmpeg fallback failed:", e)
 
-# Quick runtime test to ensure `ffmpeg` is callable as a command in the
-# deployed environment. This prints a short version string to the Streamlit
-# logs which helps debugging.
+# Runtime test for ffmpeg command
 try:
     result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
     if result.returncode == 0:
@@ -76,37 +64,26 @@ def transcribe_file(uploaded_file) -> tuple[str, str]:
     """Transcribe an uploaded video file using OpenAI Whisper with auto language detection.
 
     Returns: (english_transcript, detected_language_name)
-
-    The transcribed text will be translated to English (via Whisper's task='translate').
-    Supports English, Hindi, and Gujarati audio.
-
-    Notes:
-    - Requires `whisper` (OpenAI) package and `ffmpeg` installed and available on PATH.
-    - If these are not installed, the function raises an informative error.
     """
     try:
         import whisper
     except Exception as e:
-        model = whisper.load_model("base")
+        raise RuntimeError(
             "`whisper` not installed. Install with `pip install -U openai-whisper` and ensure ffmpeg is installed.") from e
 
     tmp_path = _save_upload_to_temp(uploaded_file)
     try:
-        # Try loading the model; if checksum fails, clear cache and retry
         try:
-            model = whisper.load_model("small")
+            model = whisper.load_model("base")
         except RuntimeError as e:
             if "SHA256 checksum" in str(e):
-                # Clear the corrupted cache and retry
-                import shutil
                 cache_dir = os.path.expanduser("~/.cache/whisper")
                 if os.path.exists(cache_dir):
                     shutil.rmtree(cache_dir)
-                model = whisper.load_model("small")
+                model = whisper.load_model("base")
             else:
                 raise
 
-        # Auto-detect language
         audio = whisper.load_audio(tmp_path)
         audio = whisper.pad_or_trim(audio)
         mel = whisper.log_mel_spectrogram(audio).to(model.device)
@@ -116,10 +93,8 @@ def transcribe_file(uploaded_file) -> tuple[str, str]:
         lang_map = {"en": "English", "hi": "Hindi", "gu": "Gujarati"}
         detected_language = lang_map.get(detected_lang_code, "English")
 
-        # Produce English translation (task='translate' always outputs English)
         try:
-            result = model.transcribe(
-                tmp_path, language=detected_lang_code, task="translate")
+            result = model.transcribe(tmp_path, language=detected_lang_code, task="translate")
             english_text = result.get("text", "")
         except Exception:
             english_text = ""
@@ -135,7 +110,7 @@ def transcribe_file(uploaded_file) -> tuple[str, str]:
 def detect_language(video_path: str) -> str:
     """Detect the language of audio in a video file using Whisper.
 
-    Returns the language name ('English', 'Hindi', 'Gujarati', etc.) or defaults to 'English'.
+    Returns the language name or defaults to 'English'.
     """
     try:
         import whisper
@@ -143,20 +118,14 @@ def detect_language(video_path: str) -> str:
         raise RuntimeError("`whisper` not installed.") from e
 
     try:
-        model = whisper.load_model("small")
-        # Use detect_language to identify the language
+        model = whisper.load_model("base")
         audio = whisper.load_audio(video_path)
         audio = whisper.pad_or_trim(audio)
         mel = whisper.log_mel_spectrogram(audio).to(model.device)
         _, probs = model.detect_language(mel)
         detected_lang_code = max(probs, key=probs.get)
 
-            model = whisper.load_model("base")
-        lang_map = {
-            "en": "English",
-            "hi": "Hindi",
-            "gu": "Gujarati",
-        }
+        lang_map = {"en": "English", "hi": "Hindi", "gu": "Gujarati"}
         return lang_map.get(detected_lang_code, "English")
     except Exception:
         return "English"
@@ -165,13 +134,7 @@ def detect_language(video_path: str) -> str:
 def download_and_transcribe_url(video_url: str) -> tuple[str, str]:
     """Download a video from URL, auto-detect language, and transcribe to English.
 
-    Supports direct MP4 links, YouTube URLs (requires yt-dlp), and other video URLs.
-
     Returns: (english_transcript, detected_language_name)
-
-    Notes:
-    - For YouTube URLs, requires `yt-dlp` package: pip install yt-dlp
-    - Requires `ffmpeg` installed and available on PATH.
     """
     try:
         import whisper
@@ -181,7 +144,6 @@ def download_and_transcribe_url(video_url: str) -> tuple[str, str]:
 
     tmp_video = None
     try:
-        # Determine if URL is YouTube
         is_youtube = "youtube.com" in video_url or "youtu.be" in video_url
 
         if is_youtube:
@@ -190,7 +152,6 @@ def download_and_transcribe_url(video_url: str) -> tuple[str, str]:
             except ImportError:
                 raise RuntimeError(
                     "YouTube URL detected but `yt-dlp` not installed. Install with `pip install yt-dlp`")
-            # Download YouTube video
             ydl_opts = {
                 'format': 'best[ext=mp4]',
                 'quiet': True,
@@ -201,24 +162,20 @@ def download_and_transcribe_url(video_url: str) -> tuple[str, str]:
                 info = ydl.extract_info(video_url, download=True)
                 tmp_video = ydl.prepare_filename(info)
         else:
-            # Direct download of MP4/video link
-            tmp_video = os.path.join(
-                tempfile.gettempdir(), 'downloaded_video.mp4')
+            tmp_video = os.path.join(tempfile.gettempdir(), 'downloaded_video.mp4')
             urllib.request.urlretrieve(video_url, tmp_video)
 
-        # Now transcribe the downloaded video
         try:
-            model = whisper.load_model("small")
+            model = whisper.load_model("base")
         except RuntimeError as e:
             if "SHA256 checksum" in str(e):
                 cache_dir = os.path.expanduser("~/.cache/whisper")
                 if os.path.exists(cache_dir):
                     shutil.rmtree(cache_dir)
-                model = whisper.load_model("small")
+                model = whisper.load_model("base")
             else:
                 raise
 
-        # Auto-detect language
         audio = whisper.load_audio(tmp_video)
         audio = whisper.pad_or_trim(audio)
         mel = whisper.log_mel_spectrogram(audio).to(model.device)
@@ -228,10 +185,8 @@ def download_and_transcribe_url(video_url: str) -> tuple[str, str]:
         lang_map = {"en": "English", "hi": "Hindi", "gu": "Gujarati"}
         detected_language = lang_map.get(detected_lang_code, "English")
 
-        # Produce English translation
         try:
-            result = model.transcribe(
-                tmp_video, language=detected_lang_code, task="translate")
+            result = model.transcribe(tmp_video, language=detected_lang_code, task="translate")
             english_text = result.get("text", "")
         except Exception:
             english_text = ""
