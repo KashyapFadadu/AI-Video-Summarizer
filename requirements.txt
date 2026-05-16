@@ -4,6 +4,8 @@ transformers
 sentencepiece
 openai-whisper
 ffmpeg-python
+imageio
+imageio-ffmpeg
 nltk
 spacy
 opencv-python-headless
@@ -12,4 +14,3 @@ langdetect
 pandas
 yt-dlp
 torchvision
-imageio-ffmpeg

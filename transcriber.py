@@ -2,21 +2,29 @@ import tempfile
 import os
 import shutil
 import urllib.request
+import subprocess
 
 # If `imageio-ffmpeg` is available (bundles an ffmpeg binary), make sure Whisper
 # can find the ffmpeg executable on environments like Streamlit Cloud where
 # system `ffmpeg` may not be installed.
 try:
     import imageio_ffmpeg as _imageio_ffmpeg
+
     ffmpeg_exe = _imageio_ffmpeg.get_ffmpeg_exe()
+
     if ffmpeg_exe:
-        os.environ.setdefault("FFMPEG_BINARY", ffmpeg_exe)
-        # Add the ffmpeg directory to PATH so subprocess calls can find it
-        os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + os.path.dirname(ffmpeg_exe)
-except Exception:
-    pass
-else:
+        os.environ["FFMPEG_BINARY"] = ffmpeg_exe
+
+        ffmpeg_dir = os.path.dirname(ffmpeg_exe)
+
+        # Prepend ffmpeg dir so the `ffmpeg` command is found first
+        os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+
+        print("FFmpeg found:", ffmpeg_exe)
+
+except Exception as e:
     ffmpeg_exe = None
+    print("FFmpeg setup failed:", e)
 
 # Fallback: if we found an ffmpeg executable via imageio-ffmpeg, create a
 # stable `/tmp/ffmpeg` entry (symlink or copy) and prepend `/tmp` to PATH so
@@ -33,8 +41,21 @@ try:
                 os.chmod(tmp_ffmpeg, 0o755)
         # Prepend /tmp so it's found first
         os.environ["PATH"] = "/tmp" + os.pathsep + os.environ.get("PATH", "")
-except Exception:
-    pass
+except Exception as e:
+    print("ffmpeg fallback failed:", e)
+
+# Quick runtime test to ensure `ffmpeg` is callable as a command in the
+# deployed environment. This prints a short version string to the Streamlit
+# logs which helps debugging.
+try:
+    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
+    if result.returncode == 0:
+        first_line = result.stdout.splitlines()[0] if result.stdout else "(no output)"
+        print("FFmpeg test output:", first_line)
+    else:
+        print("FFmpeg returned non-zero code:", result.returncode)
+except Exception as e:
+    print("FFmpeg test failed:", e)
 
 
 def _save_upload_to_temp(uploaded_file):
