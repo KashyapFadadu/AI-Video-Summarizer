@@ -31,19 +31,34 @@ else:
     st.subheader("📈 Detailed Analysis")
 
     analysis_data = []
-    for model_name in results.keys():
-        model_display = model_name.split(" (")[0]  # Get display name
-        metrics = results[model_name]
-        evals = eval_results[model_name]
-        avg_rouge = (evals['rouge1'] + evals['rouge2'] + evals['rougeL']) / 3
+
+    for model_name, metrics in results.items():
+
+        model_display = model_name.split(" (")[0]
+
+        summary = metrics.get("summary", "")
+
+        if summary.startswith("ERROR"):
+            rouge1 = 0
+            rouge2 = 0
+            rougeL = 0
+        else:
+            evals = eval_results[model_name]
+
+            rouge1 = round(evals['rouge1'], 3)
+            rouge2 = round(evals['rouge2'], 3)
+            rougeL = round(evals['rougeL'], 3)
+
+        avg_rouge = (rouge1 + rouge2 + rougeL) / 3
+
         analysis_data.append({
             "Model": model_display,
             "Time (s)": round(metrics['time'], 2),
             "Length (chars)": metrics['length'],
             "Compression": round(metrics['compression'], 2),
-            "ROUGE-1": round(evals['rouge1'], 3),
-            "ROUGE-2": round(evals['rouge2'], 3),
-            "ROUGE-L": round(evals['rougeL'], 3),
+            "ROUGE-1": rouge1,
+            "ROUGE-2": rouge2,
+            "ROUGE-L": rougeL,
             "Avg ROUGE": round(avg_rouge, 3),
         })
 
@@ -70,4 +85,8 @@ else:
     for (model_name, metrics), col in zip(results.items(), cols):
         col.markdown(f"### **{model_name}**")
         col.markdown("**Summary:**")
-        col.code(metrics['summary'])
+        summary = metrics.get("summary", "")
+        if summary.startswith("ERROR"):
+            col.error(summary)
+        else:
+            col.code(summary)

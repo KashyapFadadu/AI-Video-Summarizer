@@ -26,11 +26,11 @@ class ModelComparer:
     - T5: `t5-small`
     """
 
-    # Use a single lightweight default model for reliability on low-memory
-    # hosts (Streamlit Cloud free tier). Change to additional models if you
-    # deploy on a larger machine.
+    # Use a small set of lightweight models that work well on limited hosts.
     DEFAULT_MODELS = {
         "DistilBART (sshleifer/distilbart-cnn-12-6)": "sshleifer/distilbart-cnn-12-6",
+        "T5 Small (t5-small)": "t5-small",
+        "FLAN-T5 Small (google/flan-t5-small)": "google/flan-t5-small",
     }
 
     def __init__(self, max_length: int = 120):
@@ -60,6 +60,10 @@ class ModelComparer:
             model_max = 1024
         model_max = min(model_max, 4096)
 
+        # Add summarization prompt for T5/FLAN models which are instruction-tuned
+        if "t5" in model_name.lower():
+            text = "summarize: " + text
+
         batch = tokenizer(
             text,
             return_tensors="pt",
@@ -80,6 +84,11 @@ class ModelComparer:
         )
         summary = tokenizer.decode(
             generated[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
+
+        # Validate empty outputs from some models
+        if not summary or not summary.strip():
+            summary = "No summary generated."
+
         return summary
 
     def compare_models(self, text: str) -> Dict[str, Dict]:
@@ -90,7 +99,10 @@ class ModelComparer:
             try:
                 summary = self.summarize(text, hf_name)
             except Exception as e:
-                summary = f"[Error generating summary: {e}]"
+                print(f"MODEL FAILED: {display_name}")
+                print(str(e))
+
+                summary = f"ERROR: {str(e)}"
             elapsed = time.time() - start
             length = len(summary)
             compression = len(text) / (length + 1)
